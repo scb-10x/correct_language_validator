@@ -1,21 +1,22 @@
-# to run these, run 
-# pytest test/test-validator.py
-
 from guardrails import Guard
-from validator import RegexMatch
+from validator import CorrectLanguage
 
-# We use 'refrain' as the validator's fail action,
-#  so we expect failures to always result in a guarded output of None
-# Learn more about corrective actions here:
-#  https://www.guardrailsai.com/docs/concepts/output/#%EF%B8%8F-specifying-corrective-actions
-guard = Guard.from_string(validators=[RegexMatch(regex="a.*", match_type="fullmatch", on_fail="refrain")])
+# Create a pydantic model with a field that uses the custom validator
+guard = Guard.from_string(
+    validators=[CorrectLanguage(expected_language_iso="en", threshold=0.75)]
+)
 
-def test_pass():
-  test_output = "a test value"
-  raw_output, guarded_output, *rest = guard.parse(test_output)
-  assert(guarded_output is test_output)
 
-def test_fail():
-  test_output = "b test value"
-  raw_output, guarded_output, *rest = guard.parse(test_output)
-  assert(guarded_output is None)
+# Test happy path
+def test_happy_path():
+    response = guard.parse("The hospital is located in the heart of the city.")
+    assert(response.validation_passed)
+
+
+# Test fail path
+def test_fail_path():
+    res = guard.parse(
+        "Das Krankenhaus befindet sich im Herzen der Stadt. Wir haben auch ein Restaurant und eine Bar."
+    )
+    print(res)
+    assert not res.validation_passed

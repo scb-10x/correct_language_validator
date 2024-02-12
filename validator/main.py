@@ -1,8 +1,4 @@
-import re
-import string
-from typing import Any, Callable, Dict, Optional
-
-import rstr
+from typing import Callable, Dict, Optional, Union
 
 from guardrails.validator_base import (
     FailResult,
@@ -12,60 +8,206 @@ from guardrails.validator_base import (
     register_validator,
 )
 
+try:
+    from fast_langdetect import detect
+except ImportError:
+    detect = None
 
-@register_validator(name="guardrails/regex_match", data_type="string")
-class RegexMatch(Validator):
-    """Validates that a value matches a regular expression.
+try:
+    from iso_language_codes import language_name
+except ImportError:
+    language_name = None
 
+try:
+    from transformers import pipeline
+except ImportError:
+    pipeline = None
+
+# Local imports
+from .assets import MODEL_CODES
+
+
+@register_validator(name="scb10x/correct_language", data_type="string")
+class CorrectLanguage(Validator):
+    """
     **Key Properties**
 
-    | Property                      | Description                       |
-    | ----------------------------- | --------------------------------- |
-    | Name for `format` attribute   | `regex_match`                     |
-    | Supported data types          | `string`                          |
-    | Programmatic fix              | Generate a string that matches the regular expression |
+    | Property                      | Description                   |
+    | ----------------------------- | ----------------------------- |
+    | Name for `format` attribute   | `is-correct-language`         |
+    | Supported data types          | `string`                      |
+    | Programmatic fix              | translated text if possible   |
 
-    Args:
-        regex: Str regex pattern
-        match_type: Str in {"search", "fullmatch"} for a regex search or full-match option
-    """  # noqa
+    **Description**
+    Validates that an LLM-generated text is in the expected language. If the text
+    is not in the expected language, the validator will attempt to translate it
+    to the expected language.
+
+    Uses the `fast-langdetect` library to detect the language of the input text,
+    and the `iso-language-codes` library to get the language names from the ISO codes.
+    Meta AI's `facebook/nllb-200-distilled-600M` translation model (available on Huggingface)
+    is used to translate the text from the detected language to the expected language.
+
+    **Arguments**
+        expected_language_iso (str): The ISO 639-1 code of the expected language. Defaults to "en".
+            Please find the ISO 639-1 codes: https://www.loc.gov/standards/iso639-2/php/code_list.php
+        threshold (float): The minimum confidence score required to accept the detected language.
+        on_fail (str or callable): The action to take when the validation fails. Defaults to None.
+
+    **Example usage**
+    ```python
+    from validator import IsCorrectLanguage
+    validator = IsCorrectLanguage(
+        expected_language_iso="de",
+        threshold=0.7,
+        on_fail="fix"
+    )
+    ```
+    """
 
     def __init__(
         self,
-        regex: str,
-        match_type: Optional[str] = None,
-        on_fail: Optional[Callable] = None,
+        expected_language_iso: str = "en",
+        threshold: float = 0.7,
+        on_fail: Optional[Union[Callable, str]] = None,
+        **kwargs,
     ):
-        # todo -> something forces this to be passed as kwargs and therefore xml-ized.
-        # match_types = ["fullmatch", "search"]
-
-        if match_type is None:
-            match_type = "fullmatch"
-        assert match_type in [
-            "fullmatch",
-            "search",
-        ], 'match_type must be in ["fullmatch", "search"]'
-
-        super().__init__(on_fail=on_fail, match_type=match_type, regex=regex)
-        self._regex = regex
-        self._match_type = match_type
-
-    def validate(self, value: Any, metadata: Dict) -> ValidationResult:
-        p = re.compile(self._regex)
-        """Validates that value matches the provided regular expression."""
-        # Pad matching string on either side for fix
-        # example if we are performing a regex search
-        str_padding = (
-            "" if self._match_type == "fullmatch" else rstr.rstr(string.ascii_lowercase)
+        super().__init__(
+            expected_language_iso=expected_language_iso,
+            threshold=threshold,
+            on_fail=on_fail,
+            **kwargs,
         )
-        self._fix_str = str_padding + rstr.xeger(self._regex) + str_padding
 
-        if not getattr(p, self._match_type)(value):
-            return FailResult(
-                error_message=f"Result must match {self._regex}",
-                fix_value=self._fix_str,
+        self._expected_language_iso = expected_language_iso.strip().lower()
+        self._threshold = threshold
+        self._translation_model = "facebook/nllb-200-distilled-600M"
+
+        if detect is None:
+            raise RuntimeError(
+                "The fast-langdetect library is required for this validator. "
+                "Please install it using `pip install fast-langdetect` and try again."
             )
-        return PassResult()
 
-    def to_prompt(self, with_keywords: bool = True) -> str:
-        return "results should match " + self._regex
+        if language_name is None:
+            raise RuntimeError(
+                "The iso-language-codes library is required for this validator. "
+                "Please install it using `pip install iso-language-codes` and try again."
+            )
+
+        if pipeline is None:
+            raise RuntimeError(
+                "The HuggingFace transformers library is required for this validator. "
+                "Please install it using `pip install transformers` and try again."
+            )
+
+        # Set up the translation pipeline
+        try:
+            self._translation_pipe = pipeline(
+                "translation", model=self._translation_model
+            )
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to set up the translation pipeline. Please use a "
+                "valid translation model from HuggingFace, and try again."
+            ) from e
+
+    def get_translated_text(
+        self, text: str, src_lang_iso: str, tgt_lang_iso: str
+    ) -> Optional[str]:
+        """
+        Translate the text from the source language to the target language
+        using the translation pipeline
+
+        Args:
+            text (str): The input text to be translated
+            src_lang_iso (str): The ISO code of the source language
+            tgt_lang_iso (str): The ISO code of the target language
+
+        Returns:
+            res (str): The translated text
+        """
+
+        print(f"Translating text from {src_lang_iso} to {tgt_lang_iso}...")
+        # print("Getting language names...")
+        # Get the language names from the ISO codes
+        try:
+            src_lang_name = language_name(src_lang_iso)  # type: ignore
+            tgt_lang_name = language_name(tgt_lang_iso)  # type: ignore
+        except KeyError:
+            return None
+
+        # Get the language codes from the language names
+        src_lang_code = MODEL_CODES.get(src_lang_name)
+        tgt_lang_code = MODEL_CODES.get(tgt_lang_name)
+
+        # If any of the language codes are not found, return the original text
+        if src_lang_code is None or tgt_lang_code is None:
+            return None
+
+        # print("Running the translation pipeline...")
+        # Translate the text from the source language to the target language
+        translation = self._translation_pipe(
+            text, src_lang=src_lang_code, tgt_lang=tgt_lang_code
+        )
+
+        if not translation:
+            return None
+
+        # Return the translated text
+        res = translation[0].get("translation_text")  # type: ignore
+        print("Translated text:", res)
+        return res
+
+    def validate(self, value: str, metadata: Dict) -> ValidationResult:
+        if not isinstance(value, str):
+            raise TypeError(f"Expected a string, got {type(value).__name__}")
+        print(f"Received text: {value}")
+
+        # print("Detecting language...")
+        # Detect the language of the input text
+        prediction = detect(value)  # type: ignore
+        pred_language_iso, pred_confidence = (
+            prediction.get("lang"),
+            prediction.get("score"),
+        )
+
+        # If detection was not successful, return a PassResult
+        if pred_language_iso is None or pred_confidence is None:
+            return PassResult()
+
+        print(
+            f"Detected language: {pred_language_iso} with confidence: {pred_confidence}"
+        )
+        print("Expected language:", self._expected_language_iso)
+        print("Threshold:", self._threshold)
+
+        # Only consider results with a confidence score above the threshold
+        # If the detected language does not match the expected language
+        if (
+            float(pred_confidence) > self._threshold
+            and pred_language_iso != self._expected_language_iso
+        ):
+            # Return a FailResult with fix_value = value translated to the expected language
+            error_message = (
+                f"Expected {self._expected_language_iso}, got {pred_language_iso}"
+            )
+            fix_value = self.get_translated_text(
+                    text=value,
+                    src_lang_iso=str(pred_language_iso),
+                    tgt_lang_iso=self._expected_language_iso,
+                )
+
+            return FailResult(
+                error_message=error_message,
+                fix_value=fix_value,
+            )
+
+        # Return a PassResult in all other cases:
+        # 1. If the confidence score is above the threshold,
+        #   and the predicted language matches the expected language
+
+        # 2. If the confidence score is below the threshold
+        # (doesn't matter if the predicted language matches the expected language or not)
+        # This is a conservative approach, as we don't want to make a decision based on low confidence
+        return PassResult()

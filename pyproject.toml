@@ -1,7 +1,7 @@
 [project]
-name = "regexmatch"
-version = "0.0.0"
-description = "Template repo for Guardrails Hub validators."
+name = "correct_language"
+version = "0.1.0"
+description = "Validates that an LLM-generated text is in the expected language."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
 ]
@@ -9,8 +9,11 @@ license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">= 3.8"
 dependencies = [
-    "rstr",
-    "guardrails-ai>=0.3.2"
+    "fast-langdetect",
+    "guardrails-ai>=0.3.2",
+    "iso-language-codes",
+    "torch",
+    "transformers",
 ]
 
 [project.optional-dependencies]
