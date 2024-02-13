@@ -1,6 +1,6 @@
 # Overview
 
-| Developed by | SCB10x |
+| Developed by | SCB 10X |
 | --- | --- |
 | Date of development | Feb 15, 2024 |
 | Validator type | Quality |
@@ -10,15 +10,12 @@
 
 # Description
 
-Validates that an LLM-generated text is in the expected language. If the text
-is not in the expected language, the validator will attempt to translate it
-to the expected language.
+Validate that an LLM-generated text is in the expected language. If the text is not in the expected language, the validator will attempt to translate it to the expected language.
 
-Uses the `fast-langdetect` library to detect the language of the input text,
-and the `iso-language-codes` library to get the language names from the ISO codes.
+Use `fast-langdetect` library to detect the language of the input text,
+and `iso-language-codes` library to get the language names from the ISO codes.
 
-Meta AI's `facebook/nllb-200-distilled-600M` translation model (available on Huggingface)
-is used to translate the text from the detected language to the expected language.
+Utilize Meta's `facebook/nllb-200-distilled-600M` translation model (available on Huggingface) to translate the text from the detected language to the expected language.
 
 ## Intended use
 
