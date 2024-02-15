@@ -27,7 +27,7 @@ except ImportError:
 from .assets import MODEL_CODES
 
 
-@register_validator(name="scb10x/correct_language", data_type="string")
+@register_validator(name="scb-10x/correct_language", data_type="string")
 class CorrectLanguage(Validator):
     """
     **Key Properties**
@@ -159,7 +159,7 @@ class CorrectLanguage(Validator):
         print("Translated text:", res)
         return res
 
-    def validate(self, value: str, metadata: Dict) -> ValidationResult:
+    def validate(self, value: str, metadata: Dict = {}) -> ValidationResult:
         if not isinstance(value, str):
             raise TypeError(f"Expected a string, got {type(value).__name__}")
         print(f"Received text: {value}")

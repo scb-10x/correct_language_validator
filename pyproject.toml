@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">= 3.8"
 dependencies = [
     "fast-langdetect",
-    "guardrails-ai>=0.3.2",
+    "guardrails-ai>=0.4.0",
     "iso-language-codes",
     "torch",
     "transformers",
