@@ -1,6 +1,6 @@
 [project]
 name = "correct_language"
-version = "0.1.0"
+version = "0.1.1"
 description = "Validates that an LLM-generated text is in the expected language."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
