@@ -166,7 +166,7 @@ class CorrectLanguage(Validator):
 
         # print("Detecting language...")
         # Detect the language of the input text
-        prediction = detect(value)  # type: ignore
+        prediction = detect(value.splitlines()[0])  # type: ignore
         pred_language_iso, pred_confidence = (
             prediction.get("lang"),
             prediction.get("score"),
