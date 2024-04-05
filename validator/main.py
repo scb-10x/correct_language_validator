@@ -128,8 +128,6 @@ class CorrectLanguage(Validator):
             res (str): The translated text
         """
 
-        print(f"Translating text from {src_lang_iso} to {tgt_lang_iso}...")
-        # print("Getting language names...")
         # Get the language names from the ISO codes
         try:
             src_lang_name = language_name(src_lang_iso)  # type: ignore
@@ -145,7 +143,6 @@ class CorrectLanguage(Validator):
         if src_lang_code is None or tgt_lang_code is None:
             return None
 
-        # print("Running the translation pipeline...")
         # Translate the text from the source language to the target language
         translation = self._translation_pipe(
             text, src_lang=src_lang_code, tgt_lang=tgt_lang_code
@@ -156,15 +153,12 @@ class CorrectLanguage(Validator):
 
         # Return the translated text
         res = translation[0].get("translation_text")  # type: ignore
-        print("Translated text:", res)
         return res
 
     def validate(self, value: str, metadata: Dict = {}) -> ValidationResult:
         if not isinstance(value, str):
             raise TypeError(f"Expected a string, got {type(value).__name__}")
-        print(f"Received text: {value}")
 
-        # print("Detecting language...")
         # Detect the language of the input text
         prediction = detect(value)  # type: ignore
         pred_language_iso, pred_confidence = (
@@ -175,12 +169,6 @@ class CorrectLanguage(Validator):
         # If detection was not successful, return a PassResult
         if pred_language_iso is None or pred_confidence is None:
             return PassResult()
-
-        print(
-            f"Detected language: {pred_language_iso} with confidence: {pred_confidence}"
-        )
-        print("Expected language:", self._expected_language_iso)
-        print("Threshold:", self._threshold)
 
         # Only consider results with a confidence score above the threshold
         # If the detected language does not match the expected language
