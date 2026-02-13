@@ -8,6 +8,14 @@
 | License | Apache 2 |
 | Input/Output | Output |
 
+
+# Current status
+
+**This repository is archived and released as-is. If you’re interested in this work, please contact us.**
+
+---
+
+
 # Description
 
 Validate that an LLM-generated text is in the expected language. If the text is not in the expected language, the validator will attempt to translate it to the expected language.
